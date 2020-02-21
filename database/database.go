@@ -48,8 +48,8 @@ func (d *DB) CreateTemperaturesTable() error {
 	stmt := `CREATE TABLE IF NOT EXISTS temperatures (
 		id        SERIAL,
 		city_id   INTEGER,
-		max_cels  REAL,
-		min_cels  REAL,
+		max_c     REAL,
+		min_c     REAL,
 		time_unix BIGINT)`
 	if _, err := d.db.Exec(stmt); err != nil {
 		return err
@@ -143,4 +143,9 @@ func (d *DB) SelectOnlyCity(c *api.City) error {
 	stmt := "SELECT Name, Latitude, Longitude FROM cities WHERE id=$1"
 	row := d.db.QueryRow(stmt, c.ID)
 	return row.Scan(&c.Name, &c.Latitude, &c.Longitude)
+}
+
+func (d *DB) InsertTemperature(t *api.Temperature) error {
+	stmt := "INSERT INTO temperatures (city_id, max_c, min_c, time_unix) VALUES ($1, $2, $3, $4) RETURNING id"
+	return d.db.QueryRow(stmt, t.CityID, t.MaxC, t.MinC, t.Timestamp).Scan(&t.ID)
 }

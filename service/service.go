@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"finleap/api"
 	"finleap/database"
@@ -140,10 +141,29 @@ func (s *Service) DeleteCity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) CreateMeasurement(w http.ResponseWriter, r *http.Request) {
-	log.Printf("createMeasurement")
-	s.notifyCallbacks(0)
+	temperature, err := readTemperature(r)
+	if err != nil {
+		log.Printf("ERROR: Request parsing failed: %s", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := s.db.InsertTemperature(temperature); err != nil {
+		log.Printf("ERROR: InsertDB failed for %#v: %s", *temperature, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	s.notifyCallbacks(temperature)
+
+	body, err := json.Marshal(temperature)
+	if err != nil {
+		panic(err.Error()) // need to know ASAP
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	w.Write(body)
 }
 
 func (s *Service) GetForecasts(w http.ResponseWriter, r *http.Request) {
@@ -166,8 +186,8 @@ func (s *Service) DeleteWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Service) notifyCallbacks(city_id int) {
-	log.Printf("notifyCallbacks: %d", city_id)
+func (s *Service) notifyCallbacks(temperature *api.Temperature) {
+	log.Printf("notifyCallbacks: %d", temperature.CityID)
 }
 
 ///////////////////////////////////////////////////////////
@@ -176,11 +196,11 @@ func (s *Service) notifyCallbacks(city_id int) {
 func readCity(r *http.Request) (*api.City, error) {
 	lat, err := strconv.ParseFloat(r.FormValue("latitude"), 64)
 	if err != nil {
-		return nil, fmt.Errorf("ERROR: Wrong latitude value: %s", err)
+		return nil, fmt.Errorf("ERROR: Wrong latitude: %s", err)
 	}
 	lon, err := strconv.ParseFloat(r.FormValue("longitude"), 64)
 	if err != nil {
-		return nil, fmt.Errorf("ERROR: Wrong longitude value: %s", err)
+		return nil, fmt.Errorf("ERROR: Wrong longitude: %s", err)
 	}
 
 	city := api.City{
@@ -192,4 +212,30 @@ func readCity(r *http.Request) (*api.City, error) {
 		return nil, fmt.Errorf("ERROR: Wrong City value: %s", err)
 	}
 	return &city, nil
+}
+
+func readTemperature(r *http.Request) (*api.Temperature, error) {
+	city_id, err := strconv.ParseInt(r.FormValue("city_id"), 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("ERROR: Wrong city_id: %s", err)
+	}
+	maxC, err := strconv.ParseFloat(r.FormValue("max"), 32)
+	if err != nil {
+		return nil, fmt.Errorf("ERROR: Wrong max temperature: %s", err)
+	}
+	minC, err := strconv.ParseFloat(r.FormValue("min"), 32)
+	if err != nil {
+		return nil, fmt.Errorf("ERROR: Wrong min temperature: %s", err)
+	}
+
+	temperature := api.Temperature{
+		CityID:    int(city_id),
+		MaxC:      float32(maxC),
+		MinC:      float32(minC),
+		Timestamp: time.Now().Unix(),
+	}
+	if err := temperature.Validate(); err != nil {
+		return nil, fmt.Errorf("ERROR: Wrong Temperature value: %s", err)
+	}
+	return &temperature, nil
 }

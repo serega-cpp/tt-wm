@@ -24,3 +24,24 @@ func (c *City) Validate() error {
 	}
 	return nil
 }
+
+type Temperature struct {
+	ID        int
+	CityID    int
+	MaxC      float32
+	MinC      float32
+	Timestamp int64
+}
+
+func (t *Temperature) Validate() error {
+	if t.CityID <= 0 {
+		return fmt.Errorf("Temperature: Wrong city_id (must be > 0)")
+	}
+	if t.MinC < -273.0 || 100.0 < t.MinC {
+		return fmt.Errorf("Temperature: Wrong min temperature: %f", t.MinC)
+	}
+	if t.MaxC < -273.0 || 100.0 < t.MaxC {
+		return fmt.Errorf("Temperature: Wrong max temperature: %f", t.MaxC)
+	}
+	return nil
+}

@@ -146,6 +146,43 @@ func TestDeleteCity(t *testing.T) {
 	}
 }
 
+func TestCreateMeasurement(t *testing.T) {
+	temperature := api.Temperature{
+		CityID: 1,
+		MaxC:   27,
+		MinC:   25,
+	}
+	body := url.Values{
+		"city_id": {strconv.Itoa(temperature.CityID)},
+		"max":     {strconv.FormatFloat(float64(temperature.MaxC), 'f', -1, 64)},
+		"min":     {strconv.FormatFloat(float64(temperature.MinC), 'f', -1, 64)},
+	}
+
+	req, err := http.NewRequest("POST", "/temperatures", strings.NewReader(body.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	router := mux.NewRouter()
+	router.HandleFunc("/temperatures", rest.CreateMeasurement)
+	router.ServeHTTP(rec, req)
+
+	validateStatus(t, rec.Code, http.StatusOK)
+
+	var result api.Temperature
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	temperature.ID = result.ID
+	temperature.Timestamp = result.Timestamp
+	if temperature != result || result.ID == 0 {
+		t.Errorf("Wrong result: got %v expected %v (expected ID > 0)", result, temperature)
+	}
+}
+
 func validateStatus(t *testing.T, got, expected int) {
 	if got != expected {
 		t.Errorf("Status code: got %v expected %v", got, expected)
